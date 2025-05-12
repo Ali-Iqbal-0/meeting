@@ -9,23 +9,26 @@ import { Textarea } from './ui/textarea';
 import ReactDatePicker from 'react-datepicker';
 import { v4 as uuidv4 } from 'uuid';
 
+// Define possible meeting state values
+type MeetingState = 'isInstantMeeting' | 'isScheduleMeeting' | 'isJoinMeeting' | undefined;
+
 const MeetingTypeList = () => {
   const router = useRouter();
-  const [values, setValues] = useState({
+  const [values, setValues] = useState<{
+    dateTime: Date;
+    description: string;
+    link: string;
+  }>({
     dateTime: new Date(),
     description: '',
     link: '',
   });
-  const [callDetails, setCallDetails] = useState<Call | undefined>();
-  const [meetingState, setMeetingState] = useState<
-    'isScheduleMeeting' | 'isJoinMeeting' | 'isInstantMeeting' | undefined
-  >(undefined);
+  const [callDetails, setCallDetails] = useState<Call | undefined>(undefined);
+  const [meetingState, setMeetingState] = useState<MeetingState>(undefined);
 
   const userId = localStorage.getItem('userId');
   const token = localStorage.getItem('token');
   const client = useStreamVideoClient();
-
-  console.log('MeetingTypeList - userId:', userId, 'token:', token ? token.slice(0, 10) + '...' : null, 'client:', client);
 
   const createMeeting = async () => {
     if (!client || !userId || !token) {
@@ -43,14 +46,14 @@ const MeetingTypeList = () => {
         throw new Error('Failed to create call');
       }
 
-      const startsAt = new Date(Date.now()).toISOString();
-      const description = values.description || 'Instant Meeting';
+      const date = new Date().toISOString();
+      const title = values.description || 'Instant Meeting';
 
       await call.getOrCreate({
         data: {
-          starts_at: startsAt,
+          starts_at: date,
           custom: {
-            description,
+            description: title,
             creatorId: userId,
           },
         },
@@ -59,10 +62,33 @@ const MeetingTypeList = () => {
       setCallDetails(call);
       console.log('Instant meeting created with ID:', callId);
 
+      // Save to MongoDB
+      const meetingLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/${callId}`;
+      const requestBody = {
+        callId,
+        title,
+        date,
+        creatorId: userId,
+        meetingLink,
+      };
+      console.log('Sending request to /api/meetings:', requestBody);
+
+      const response = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        console.error('API error:', responseData);
+        throw new Error(responseData.message || 'Failed to save meeting to database');
+      }
+
       router.push(`/${callId}`);
     } catch (error) {
       console.error('Error creating instant meeting:', error);
-      alert('Failed to create meeting. Please try again.');
+      alert(`Failed to create meeting: ${(error as Error).message}`);
     }
   };
 
@@ -82,14 +108,14 @@ const MeetingTypeList = () => {
         throw new Error('Failed to create call');
       }
 
-      const startsAt = values.dateTime.toISOString();
-      const description = values.description || 'Scheduled Meeting';
+      const date = values.dateTime.toISOString();
+      const title = values.description || 'Scheduled Meeting';
 
       await call.getOrCreate({
         data: {
-          starts_at: startsAt,
+          starts_at: date,
           custom: {
-            description,
+            description: title,
             creatorId: userId,
           },
         },
@@ -98,14 +124,37 @@ const MeetingTypeList = () => {
       setCallDetails(call);
       console.log('Scheduled meeting created with ID:', callId);
 
+      // Save to MongoDB
+      const meetingLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/${callId}`;
+      const requestBody = {
+        callId,
+        title,
+        date,
+        creatorId: userId,
+        meetingLink,
+      };
+      console.log('Sending request to /api/meetings:', requestBody);
+
+      const response = await fetch('/api/meetings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        console.error('API error:', responseData);
+        throw new Error(responseData.message || 'Failed to save meeting to database');
+      }
+
       setMeetingState('isScheduleMeeting');
     } catch (error) {
       console.error('Error creating scheduled meeting:', error);
-      alert('Failed to create meeting. Please try again.');
+      alert(`Failed to create meeting: ${(error as Error).message}`);
     }
   };
 
-  const meetingLink = `http://localhost:3000/meeting/${callDetails?.id}`;
+  const meetingLink = callDetails ? `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/${callDetails.id}` : '';
 
   return (
     <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -137,6 +186,13 @@ const MeetingTypeList = () => {
         handleClick={() => setMeetingState('isJoinMeeting')}
         className="bg-yellow-500"
       />
+      <HomeCard
+        img="/icons/meetings.svg"
+        title="View Meetings"
+        description="Check out your meetings"
+        handleClick={() => router.push('/meetings')}
+        className="bg-green-500"
+      />
       {!callDetails ? (
         <MeetingModal
           isOpen={meetingState === 'isScheduleMeeting'}
@@ -144,8 +200,8 @@ const MeetingTypeList = () => {
           title="Create Meeting"
           handleClick={createScheduleMeeting}
         >
-          <span className="flex flex-col gap-2.5">
-            <label className="text-base text-normal leading-[22px]">
+          <div className="flex flex-col gap-2.5">
+            <label className="text-base font-normal leading-[22px]">
               Add a Description
             </label>
             <Textarea
@@ -154,14 +210,16 @@ const MeetingTypeList = () => {
                 setValues({ ...values, description: e.target.value });
               }}
             />
-          </span>
-          <span className="flex w-full flex-col gap-2.5">
-            <label className="text-base text-normal leading-[22px]">
+          </div>
+          <div className="flex w-full flex-col gap-2.5">
+            <label className="text-base font-normal leading-[22px]">
               Select Date & Time
             </label>
             <ReactDatePicker
               selected={values.dateTime}
-              onChange={(date) => setValues({ ...values, dateTime: date! })}
+              onChange={(date: Date | null) => {
+                setValues({ ...values, dateTime: date || new Date() });
+              }}
               showTimeSelect
               timeFormat="HH:mm"
               timeIntervals={15}
@@ -169,7 +227,7 @@ const MeetingTypeList = () => {
               dateFormat="MMMM d, yyyy h:mm aa"
               className="bg-gray-600 w-full rounded p-2 focus:outline-none"
             />
-          </span>
+          </div>
         </MeetingModal>
       ) : (
         <MeetingModal
@@ -190,7 +248,7 @@ const MeetingTypeList = () => {
               Copy Meeting Link
             </button>
             <button
-              onClick={() => router.push(`/meeting/${callDetails?.id}`)}
+              onClick={() => router.push(`/${callDetails.id}`)}
               className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
             >
               Join Meeting
@@ -206,6 +264,38 @@ const MeetingTypeList = () => {
         buttonText="Start Meeting"
         handleClick={createMeeting}
       />
+      <MeetingModal
+        isOpen={meetingState === 'isJoinMeeting'}
+        onClose={() => setMeetingState(undefined)}
+        title="Join a Meeting"
+        className="text-center"
+        buttonText="Join Meeting"
+        handleClick={() => {
+          if (values.link) {
+            // Extract callId from link (e.g., http://localhost:3000/<callId>)
+            const callId = values.link.split('/').pop();
+            if (callId) {
+              router.push(`/${callId}`);
+            } else {
+              alert('Invalid meeting link');
+            }
+          } else {
+            alert('Please enter a meeting link');
+          }
+        }}
+      >
+        <div className="flex flex-col gap-2.5">
+          <label className="text-base font-normal leading-[22px]">
+            Meeting Link
+          </label>
+          <input
+            type="text"
+            className="bg-gray-600 w-full rounded p-2 focus:outline-none"
+            placeholder="Enter meeting link (e.g., http://localhost:3000/<callId>)"
+            onChange={(e) => setValues({ ...values, link: e.target.value })}
+          />
+        </div>
+      </MeetingModal>
     </section>
   );
 };

@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
     console.log('Token verified in API:', decoded.email); // Debug log
 
-    const { title, date } = await request.json();
+    const { callId, title, date, creatorId, meetingLink } = await request.json();
     if (!title || !date) {
       return NextResponse.json({ message: 'Title and date are required' }, { status: 400 });
     }
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       date: new Date(date),
       userId: decoded.userId,
       createdAt: new Date(),
+      meetingLink:meetingLink,
     };
 
     const result = await db.collection('meetings').insertOne(meeting);
