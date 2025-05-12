@@ -1,60 +1,60 @@
 'use client';
+
 import { StreamVideo, StreamVideoClient } from '@stream-io/video-react-sdk';
 import { ReactNode, useEffect, useState } from 'react';
 import { tokenProvider } from '@/actions/stream.actions';
 import Loader from '@/components/Loader';
 
-const generateRandomId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback: Generate a random string
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
 const apiKey = 'hjqx8fuvvdw5';
 
 const StreamVideoProvider = ({ children }: { children: ReactNode }) => {
   const [videoClient, setVideoClient] = useState<StreamVideoClient | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    const email = localStorage.getItem('email') || 'Unknown User';
+
     if (!apiKey) {
-      throw new Error('Stream API key is missing. Please set NEXT_PUBLIC_STREAM_API_KEY in .env.local');
+      console.error('Stream API key is missing');
+      return;
+    }
+
+    if (!userId) {
+      console.error('No userId found in localStorage, redirecting to signin');
+      window.location.href = '/signin';
+      return;
     }
 
     const initClient = async () => {
       try {
-        // Generate a unique guest user ID
-        const guestUserId = `guest_${generateRandomId()}`;
-        
         const client = new StreamVideoClient({
           apiKey,
           user: {
-            id: guestUserId,
-            name: guestUserId, // Customize name if needed
+            id: userId,
+            name: email,
             image: '/icons/person.png',
           },
-          tokenProvider: () => tokenProvider(guestUserId), // Pass guestUserId to tokenProvider
+          tokenProvider: () => tokenProvider(userId),
         });
 
         setVideoClient(client);
-
-        // Cleanup on unmount
-        return () => {
-          client.disconnectUser();
-        };
+        console.log('StreamVideoClient initialized for user:', userId);
       } catch (error) {
         console.error('Failed to initialize StreamVideoClient:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     initClient();
+
+    return () => {
+      videoClient?.disconnectUser();
+    };
   }, []);
 
-  if (!videoClient) return <Loader />;
+  if (isLoading || !videoClient) return <Loader />;
 
   return <StreamVideo client={videoClient}>{children}</StreamVideo>;
 };
