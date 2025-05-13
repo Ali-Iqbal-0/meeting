@@ -28,6 +28,7 @@ export default function SignIn() {
         if (data.userId && data.token) {
           localStorage.setItem('userId', data.userId);
           localStorage.setItem('token', data.token);
+          localStorage.setItem('email', email);
           console.log('Saved to localStorage:', { userId: data.userId, token: data.token });
         } else {
           console.error('Missing userId or token in response');
