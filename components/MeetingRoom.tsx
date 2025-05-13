@@ -10,7 +10,7 @@ import {
   SpeakerLayout,
   useCallStateHooks,
 } from '@stream-io/video-react-sdk';
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,35 +22,37 @@ import { LayoutList, Users } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import EndCallButton from './EndCallButton';
 import Loader from './Loader';
-import '@stream-io/video-react-sdk/dist/css/styles.css'; // Import Stream.io styles
+import '@stream-io/video-react-sdk/dist/css/styles.css';
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
 const MeetingRoom = () => {
-  const [layout, setLayout] = useState<CallLayoutType>('speaker-left');
-  const [showParticipants, setShowParticipants] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [layout, setLayout] = React.useState<CallLayoutType>('speaker-left');
+  const [showParticipants, setShowParticipants] = React.useState(false);
   const searchParams = useSearchParams();
   const { useCallCallingState, useCallCustomData } = useCallStateHooks();
   const callingState = useCallCallingState();
   const customData = useCallCustomData();
   const isPersonalRoom = !!searchParams.get('personal');
 
-  // Handle SSR for localStorage
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  // Synchronously fetch userId from localStorage
+  const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
-  const userId = isClient ? localStorage.getItem('userId') : null;
-  const isHost = customData?.creatorId === userId;
-
-  // Debug call state
-  useEffect(() => {
+  // Debug call state and data
+  React.useEffect(() => {
     console.log('Calling State:', callingState);
     console.log('Custom Data:', customData);
+    console.log('User ID:', userId);
     console.log('Is Host:', isHost);
-  }, [callingState, customData, isHost]);
+  }, [callingState, customData, userId]);
 
+  // Memoize isHost to avoid recomputation unless dependencies change
+  const isHost = useMemo(() => {
+    if (!userId || !customData?.creatorId) return false;
+    return customData.creatorId === userId;
+  }, [customData, userId]);
+
+  // Handle loading and error states
   if (callingState !== CallingState.JOINED) {
     if (callingState === CallingState.RECONNECTING) {
       return (
@@ -107,7 +109,6 @@ const MeetingRoom = () => {
             onLeave={() => {
               window.location.href = '/'; // Redirect to homepage after leaving
             }}
-           
           />
         </div>
 
@@ -150,9 +151,7 @@ const MeetingRoom = () => {
         </DropdownMenu>
 
         {/* End Call Button (Host Only) */}
-        {isHost && !isPersonalRoom && (
-          <EndCallButton />
-        )}
+        {isHost && !isPersonalRoom && <EndCallButton />}
       </div>
     </section>
   );
