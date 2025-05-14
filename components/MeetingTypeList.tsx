@@ -42,13 +42,14 @@ const MeetingTypeList = () => {
 
       const date = new Date().toISOString();
       const title = values.description || 'Instant Meeting';
-
+      const meetingType='Instant Meeting';
       await call.getOrCreate({
         data: {
           starts_at: date,
           custom: {
             description: title,
             creatorId: userId,
+            meetingType:meetingType,
           },
         },
       });
@@ -63,6 +64,7 @@ const MeetingTypeList = () => {
         date,
         creatorId: userId,
         meetingLink,
+        meetingType,
       };
 
       const response = await fetch('/api/meetings', {
@@ -96,6 +98,7 @@ const MeetingTypeList = () => {
 
       const date = values.dateTime.toISOString();
       const title = values.description || 'Scheduled Meeting';
+      const meetingType='Scheduled Meeting';
 
       await call.getOrCreate({
         data: {
@@ -103,6 +106,7 @@ const MeetingTypeList = () => {
           custom: {
             description: title,
             creatorId: userId,
+            meetingType:meetingType,
           },
         },
       });
@@ -117,6 +121,7 @@ const MeetingTypeList = () => {
         date,
         creatorId: userId,
         meetingLink,
+        meetingType,
       };
 
       const response = await fetch('/api/meetings', {

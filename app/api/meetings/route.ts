@@ -12,9 +12,9 @@ export async function POST(request: Request) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
-    const { callId, title, date, creatorId, meetingLink } = await request.json();
+    const { callId, title, date, creatorId, meetingLink,meetingType } = await request.json();
 
-    if (!callId || !title || !date || !creatorId || !meetingLink) {
+    if (!callId || !title || !date || !creatorId || !meetingLink || !meetingType) {
       return NextResponse.json({ message: 'All fields are required' }, { status: 400 });
     }
 
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
       creatorId,
       meetingLink,
       createdAt: new Date(),
+meetingType,
     };
 
     const result = await db.collection('meetings').insertOne(meeting);
