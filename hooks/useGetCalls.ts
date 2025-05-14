@@ -1,55 +1,71 @@
-import { Call, useStreamVideoClient } from "@stream-io/video-react-sdk"
-import { useEffect, useState } from "react"
-import { start } from "repl";
+'use client';
 
-export const userGetCalls=()=>{
-    const [calls, setCalls] = useState<Call[]>([]);
-    const [isLoading, setisLoading] = useState(false);
-    const client =useStreamVideoClient();
-    const user = 'Ali'; 
+import { useEffect, useState } from 'react';
 
-    useEffect(()=>{
-        const loadCalls=async()=>{
-            if(!client || user)return;
-
-            setisLoading(true);
-
-            try {
-                const {calls}=await client.queryCalls({
-                    sort:[{field:'starts_at',direction:-1}],
-                    filter_conditions:{
-                        starts_at:{$exists:true},
-                        $or:[
-                            {created_by_user:user},
-                            {members :{$in:[user]}},
-
-                        ]
-                    }
-                });
-                setCalls(calls);
-            } catch (error) {
-                console.log(error)
-            } finally{
-                setisLoading(false)
-            }
-        }
-        loadCalls();
-    },[client,user])
-const now =new Date();
-
-
-    const endedCalls=calls.filter(({ state:{startsAt,endedAt}}:Call)=>{
-        return(startsAt && new Date(startsAt) < now || !!endedAt)
-    });
-    const upcomingCalls=calls.filter(({ state:{startsAt,endedAt}}:Call)=>{
-        return startsAt && new Date(startsAt)<now
-    });
-  
-
-    return{
-        endedCalls,
-        upcomingCalls,
-        callRecordings:calls,
-        isLoading,
-    }
+interface Meeting {
+  _id: string;
+  callId: string;
+  title: string;
+  date: string;
+  creatorId: string;
+  meetingLink: string;
+  meetingType: string;
+  createdAt: string;
 }
+
+export const useGetCalls = () => {
+  const [calls, setCalls] = useState<Meeting[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+
+  useEffect(() => {
+    const loadCalls = async () => {
+      if (!userId) {
+        console.error('No userId found in localStorage');
+        return;
+      }
+
+      setIsLoading(true);
+
+      try {
+        const response = await fetch('/api/meetings', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch meetings');
+        }
+
+        const meetings: Meeting[] = await response.json();
+        setCalls(meetings);
+      } catch (error) {
+        console.error('Error fetching meetings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCalls();
+  }, [userId]);
+
+  const now = new Date();
+
+  const endedCalls = calls.filter((meeting) => {
+    return new Date(meeting.date) < now;
+  });
+
+  const upcomingCalls = calls.filter((meeting) => {
+    return new Date(meeting.date) >= now;
+  });
+
+  return {
+    endedCalls,
+    upcomingCalls,
+    callRecordings: [], // Not implemented yet, as recordings aren't stored in MongoDB
+    isLoading,
+  };
+};

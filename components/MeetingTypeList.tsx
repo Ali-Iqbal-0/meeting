@@ -174,13 +174,6 @@ const MeetingTypeList = () => {
         handleClick={() => setMeetingState('isJoinMeeting')}
         className="bg-yellow-500"
       />
-      <HomeCard
-        img="/icons/meetings.svg"
-        title="View Meetings"
-        description="Check out your meetings"
-        handleClick={() => router.push('/meetings')}
-        className="bg-green-500"
-      />
       <MeetingModal
         isOpen={meetingState === 'isInstantMeeting'}
         onClose={() => setMeetingState(undefined)}

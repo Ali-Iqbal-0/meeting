@@ -1,11 +1,12 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { cn } from "@/lib/utils";
+import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
 interface MeetingCardProps {
   title: string;
-  date: string;
+  date: string; // Scheduled meeting date
+  createdAt: string; // Creation date
   icon: string;
   isPreviousMeeting?: boolean;
   buttonIcon1?: string;
@@ -18,57 +19,69 @@ const MeetingCard = ({
   icon,
   title,
   date,
+  createdAt,
   isPreviousMeeting,
   buttonIcon1,
   handleClick,
   link,
   buttonText,
 }: MeetingCardProps) => {
-alert("hello");
-
   return (
-    <section className="flex min-h-[258px] w-full flex-col justify-between rounded-[14px] bg-dark-1 px-5 py-8 xl:max-w-[568px]">
-      <article className="flex flex-col gap-5">
-        <Image src={icon} alt="upcoming" width={28} height={28} />
-        <div className="flex justify-between">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-bold">{title}</h1>
-            <p className="text-base font-normal">{date}</p>
+    <section
+      className={cn(
+        'flex min-h-[280px] w-full flex-col justify-between rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 px-6 py-6 shadow-lg transition-all hover:shadow-xl xl:max-w-[568px]'
+      )}
+    >
+      <article className="flex flex-col gap-4">
+        <Image src={icon} alt="meeting icon" width={32} height={32} className="text-white" />
+        <div className="flex flex-col gap-2">
+          <h1 className="text-xl font-bold text-white line-clamp-1">{title}</h1>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-blue-100">
+              <span className="font-semibold">Scheduled:</span>{' '}
+              {new Date(date).toLocaleString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric',
+                hour12: true,
+              })}
+            </p>
+            <p className="text-xs font-normal text-blue-200">
+              <span className="font-semibold">Created:</span>{' '}
+              {new Date(createdAt).toLocaleString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </p>
           </div>
         </div>
       </article>
-      <article className={cn("flex justify-center relative", {})}>
-        <div className="relative flex w-full max-sm:hidden">
-          <div className="flex-center absolute left-[136px] size-10 rounded-full border-[5px] border-dark-3 bg-dark-4">
-            +5
-          </div>
-        </div>
+      <article className="flex justify-end gap-3 mt-4">
         {!isPreviousMeeting && (
-          <div className="flex gap-2">
-            <button onClick={handleClick} className="rounded bg-blue-1 px-6">
+          <>
+            <button
+              onClick={handleClick}
+              className="flex items-center gap-2 rounded-lg bg-blue-400 px-4 py-2 text-sm font-medium text-white hover:bg-blue-300 transition-colors"
+            >
               {buttonIcon1 && (
-                <Image src={buttonIcon1} alt="feature" width={20} height={20} />
+                <Image src={buttonIcon1} alt="feature" width={16} height={16} />
               )}
-              &nbsp; {buttonText}
+              {buttonText || 'Start'}
             </button>
             <button
               onClick={() => {
                 navigator.clipboard.writeText(link);
-                alert({
-                  title: "Link Copied",
-                });
+                alert('Link Copied');
               }}
-              className="bg-dark-4 px-6"
+              className="flex items-center gap-2 rounded-lg bg-gray-400 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-yellow-300 transition-colors"
             >
-              <Image
-                src="/icons/copy.svg"
-                alt="feature"
-                width={20}
-                height={20}
-              />
-              &nbsp; Copy Link
+              <Image src="/icons/copy.svg" alt="copy" width={16} height={16} />
+              Copy Link
             </button>
-          </div>
+          </>
         )}
       </article>
     </section>
