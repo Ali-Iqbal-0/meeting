@@ -20,11 +20,25 @@ const StreamVideoProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (!userId) {
+    /*if (!userId) {
       console.error('No userId found in localStorage, redirecting to signin');
       window.location.href = '/signin';
       return;
-    }
+    }*/
+
+      if (!userId || !email) {
+        console.log('No user info found, setting dummy values');
+        const dummyUserId = '6821cd1c1d6cc1bf150ee988';
+        const dummyEmail = 'example@gmail.com';
+    
+        localStorage.setItem('userId', dummyUserId);
+        localStorage.setItem('email', dummyEmail);
+        localStorage.setItem('token', 'your_dummy_token_here');
+    
+        // Re-run the effect after setting dummy values
+        window.location.reload();
+        return;
+      }
 
     const initClient = async () => {
       try {
