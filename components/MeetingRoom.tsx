@@ -23,6 +23,7 @@ import { useSearchParams } from 'next/navigation';
 import EndCallButton from './EndCallButton';
 import Loader from './Loader';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
+import PendingRequestsPanel from './PendingRequestsPanel';
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
@@ -35,22 +36,23 @@ const MeetingRoom = () => {
   const customData = useCallCustomData();
   const isPersonalRoom = !!searchParams.get('personal');
 
-  // Synchronously fetch userId from localStorage
+  // Synchronously fetch userId and email from localStorage
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-
-  // Debug call state and data
-  React.useEffect(() => {
-    console.log('Calling State:', callingState);
-    console.log('Custom Data:', customData);
-    console.log('User ID:', userId);
-    console.log('Is Host:', isHost);
-  }, [callingState, customData, userId]);
+  const userEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null;
 
   // Memoize isHost to avoid recomputation unless dependencies change
   const isHost = useMemo(() => {
     if (!userId || !customData?.creatorId) return false;
     return customData.creatorId === userId;
   }, [customData, userId]);
+
+  // Debug logs
+  React.useEffect(() => {
+    console.log('Calling State:', callingState);
+    console.log('Custom Data:', customData);
+    console.log('User ID:', userId);
+    console.log('Is Host meeting room:', isHost);
+  }, [callingState, customData, userId]);
 
   // Handle loading and error states
   if (callingState !== CallingState.JOINED) {
@@ -85,11 +87,19 @@ const MeetingRoom = () => {
 
   return (
     <section className="relative h-screen w-full overflow-hidden bg-gray-900 text-white">
+      {/* Display email with (host) if user is host */}
+      {userEmail && (
+        <div className="absolute top-4 right-4 z-50 rounded-md bg-gray-800 px-4 py-2 text-sm text-white shadow-md">
+          {userEmail} {isHost && <span className="text-blue-400">(host)</span>}
+        </div>
+      )}
+
       {/* Main Video Layout */}
       <div className="relative flex h-full w-full items-center justify-center">
         <div className="flex w-full max-w-[1200px] items-center justify-center">
           <CallLayout />
         </div>
+
         {/* Participants List (Slide-in Panel) */}
         <div
           className={cn(
@@ -103,16 +113,15 @@ const MeetingRoom = () => {
 
       {/* Bottom Controls Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-4 bg-gray-800 p-4 shadow-lg">
-        {/* Stream.io Call Controls (Mic, Camera, Screen Share, Leave) */}
+        {/* Stream.io Call Controls */}
         <div className="flex items-center gap-2">
           <CallControls
             onLeave={() => {
-              window.location.href = '/'; // Redirect to homepage after leaving
+              window.location.href = '/'; // Redirect to homepage
             }}
           />
         </div>
-
-        {/* Call Stats Button */}
+        <PendingRequestsPanel />
         <CallStatsButton />
 
         {/* Toggle Participants List */}
@@ -123,13 +132,12 @@ const MeetingRoom = () => {
             showParticipants ? 'bg-blue-600' : 'bg-gray-700',
             'hover:bg-blue-500 transition-colors'
           )}
-          aria-label="Toggle participants list"
         >
           <Users size={20} />
           <span>Participants</span>
         </button>
 
-        {/* Layout Dropdown */}
+        {/* Layout Selection */}
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium hover:bg-blue-500 transition-colors">
             <LayoutList size={20} />
@@ -150,7 +158,7 @@ const MeetingRoom = () => {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* End Call Button (Host Only) */}
+        {/* End Call Button - Host Only */}
         {isHost && !isPersonalRoom && <EndCallButton />}
       </div>
     </section>

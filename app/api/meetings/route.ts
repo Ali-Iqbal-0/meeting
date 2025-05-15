@@ -1,25 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { getDb } from '@/lib/mongodb';
+import Meeting from '@/lib/models/meeting.model';
+import { connectToDatabase } from '@/lib/mongoose';
 
-const JWT_SECRET = 'ugdeugdeud77556'; // Replace with env variable
+const JWT_SECRET = process.env.JWT_SECRET || 'ugdeugdeud77556'; // Use environment variable
 
 // GET: Fetch all meetings for the authenticated user
 export async function GET(request: NextRequest) {
   try {
+    await connectToDatabase();
     const token = request.cookies.get('token')?.value;
     if (!token) {
       return NextResponse.json({ message: 'Unauthorized: No token provided' }, { status: 401 });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
-    const db = await getDb();
-
-    const meetings = await db
-      .collection('meetings')
-      .find({ creatorId: decoded.userId })
+    const meetings = await Meeting.find({ creatorId: decoded.userId })
       .sort({ date: -1 }) // Sort by date, newest first
-      .toArray();
+      .lean();
 
     return NextResponse.json(meetings, { status: 200 });
   } catch (error) {
@@ -31,10 +29,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Existing route to create a meeting (unchanged)
-export async function POST(request: Request) {
+// POST: Create a new meeting
+export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('cookie')?.match(/token=([^;]+)/)?.[1];
+    await connectToDatabase();
+    const token = request.cookies.get('token')?.value; // Consistent token extraction
     if (!token) {
       return NextResponse.json({ message: 'Unauthorized: No token provided' }, { status: 401 });
     }
@@ -50,8 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Unauthorized: Creator ID mismatch' }, { status: 403 });
     }
 
-    const db = await getDb();
-    const meeting = {
+    const meeting = new Meeting({
       callId,
       title,
       date: new Date(date),
@@ -59,10 +57,13 @@ export async function POST(request: Request) {
       meetingLink,
       meetingType,
       createdAt: new Date(),
-    };
+      isPersonalRoom: false, // Default value as per schema
+      requiresJoinRequest: true, // Default value as per schema
+      participants: [], // Initialize empty participants array
+    });
 
-    const result = await db.collection('meetings').insertOne(meeting);
-    return NextResponse.json({ _id: result.insertedId, ...meeting }, { status: 201 });
+    const savedMeeting = await meeting.save();
+    return NextResponse.json(savedMeeting, { status: 201 });
   } catch (error) {
     console.error('Meetings API error:', error);
     return NextResponse.json(

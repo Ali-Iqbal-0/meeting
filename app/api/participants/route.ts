@@ -1,11 +1,12 @@
-import { getDb } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/mongoose';
 import { NextResponse } from 'next/server';
+import InviteParticipants from '@/lib/models/Participant';
 
 export async function GET() {
   try {
-    const db = await getDb();
-    const participants = await db.collection('Participants').find({}).toArray();
-    return NextResponse.json(participants, { status: 200 });
+    await connectToDatabase();
+    const invitees = await InviteParticipants.find({});
+    return NextResponse.json(invitees, { status: 200 });
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch participants' },

@@ -64,7 +64,7 @@ export default function MeetingPage() {
       <StreamCall call={call}>
         <StreamTheme>
           {!isSetupComplete ? (
-            <MeetingSetup setisSteupComplete={setIsSetupComplete} />
+            <MeetingSetup setIsSetupComplete={setIsSetupComplete} />
           ) : (
             <MeetingRoom />
           )}

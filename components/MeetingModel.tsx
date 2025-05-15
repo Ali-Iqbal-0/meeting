@@ -10,7 +10,7 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import Select from 'react-select';
 
-interface Participant {
+interface InviteParticipants {
   _id: string;
   name: string;
   email: string;
@@ -47,7 +47,7 @@ const MeetingModal = ({
   meetingLink = 'https://your-app.com/meeting/123',
   callDetails,
 }: MeetingModalProps) => {
-  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [participants, setParticipants] = useState<InviteParticipants[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [externalEmails, setExternalEmails] = useState<string[]>([]);

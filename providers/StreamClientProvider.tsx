@@ -28,7 +28,7 @@ const StreamVideoProvider = ({ children }: { children: ReactNode }) => {
 
       if (!userId || !email) {
         console.log('No user info found, setting dummy values');
-        const dummyUserId = '6821cd1c1d6cc1bf150ee988';
+        const dummyUserId = '123';
         const dummyEmail = 'example@gmail.com';
     
         localStorage.setItem('userId', dummyUserId);
