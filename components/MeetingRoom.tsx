@@ -24,6 +24,7 @@ import EndCallButton from './EndCallButton';
 import Loader from './Loader';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
 import PendingRequestsPanel from './PendingRequestsPanel';
+import ParticipantsList from '@/components/ParticipantsList';
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
@@ -123,6 +124,8 @@ const MeetingRoom = () => {
         </div>
         <PendingRequestsPanel />
         <CallStatsButton />
+        {isHost && !isPersonalRoom &&  <ParticipantsList />}
+       
 
         {/* Toggle Participants List */}
         <button

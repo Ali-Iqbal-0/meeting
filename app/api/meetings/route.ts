@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized: No token provided' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; name?: string };
     const meetings = await Meeting.find({ creatorId: decoded.userId })
       .sort({ date: -1 }) // Sort by date, newest first
       .lean();
@@ -38,17 +38,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized: No token provided' }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
-    const { callId, title, date, creatorId, meetingLink, meetingType } = await request.json();
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; name?: string };
+    const { callId, title, date, creatorId, meetingLink, meetingType, isPersonalRoom } = await request.json();
 
+    // Validate required fields
     if (!callId || !title || !date || !creatorId || !meetingLink || !meetingType) {
       return NextResponse.json({ message: 'All fields are required' }, { status: 400 });
     }
 
+    // Ensure the creatorId matches the authenticated user
     if (creatorId !== decoded.userId) {
       return NextResponse.json({ message: 'Unauthorized: Creator ID mismatch' }, { status: 403 });
     }
 
+    // Create the meeting with the creator as a participant with isHost: true
     const meeting = new Meeting({
       callId,
       title,
@@ -56,10 +59,18 @@ export async function POST(request: NextRequest) {
       creatorId,
       meetingLink,
       meetingType,
+      isPersonalRoom: !!isPersonalRoom, // Use provided value or default to false
+      requiresJoinRequest: !isPersonalRoom, // Default to true unless personal room
+      participants: [
+        {
+          userId: decoded.userId,
+          name: decoded.name || 'Creator', // Use name from token or fallback
+          email: decoded.email, // Use email from token
+          status: 'approved', // Creator is automatically approved
+          isHost: true, // Creator is the main host
+        },
+      ],
       createdAt: new Date(),
-      isPersonalRoom: false, // Default value as per schema
-      requiresJoinRequest: true, // Default value as per schema
-      participants: [], // Initialize empty participants array
     });
 
     const savedMeeting = await meeting.save();

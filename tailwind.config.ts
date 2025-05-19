@@ -13,6 +13,21 @@ module.exports = {
           1: '#dd6248', 
           2: '#161925'// Define bg-dark-2 if it’s custom
         },
+        animation: {
+          'slide-in': 'slideInRight 0.3s ease-out',
+        },
+        keyframes: {
+          slideInRight: {
+            '0%': {
+              opacity: '0',
+              transform: 'translateX(30%)',
+            },
+            '100%': {
+              opacity: '1',
+              transform: 'translateX(0)',
+            },
+          },
+        },
       }, // Yahan custom colors, fonts, ya spacing add kar sakte hain
     },
     plugins: [], // Yahan additional Tailwind plugins add kar sakte hain

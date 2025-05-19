@@ -71,7 +71,7 @@ const CallList = ({ type }: { type: 'ended' | 'upcoming' | 'recordings' }) => {
             link={meeting.meetingLink}
             buttonIcon1={type === 'recordings' ? '/icons/play.svg' : undefined}
             buttonText={type === 'recordings' ? 'Play' : 'Start'}
-            handleClick={() => router.push(`/meeting/${meeting.callId}`)}
+            handleClick={() => router.push(`/${meeting.callId}`)}
           />
         ))
       ) : (
