@@ -3,14 +3,14 @@ import { Schema, model, models } from 'mongoose';
 const ParticipantSchema = new Schema({
   userId: { type: String, required: true },
   name: { type: String, required: true },
-  email: { type: String }, // Made optional
+  email: { type: String },
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
-  isHost: { type: Boolean, default: false }, // Used for both main host and co-hosts
-  
+  isHost: { type: Boolean, default: false },
+  joinedAt: { type: Date, default: Date.now }
 });
 
 const MeetingSchema = new Schema({

@@ -57,7 +57,7 @@ const MeetingModal = ({
     if (isOpen) {
       const fetchParticipants = async () => {
         try {
-          const res = await fetch('/api/participants');
+          const res = await fetch('/api/participants-model');
           const data = await res.json();
           if (res.ok) {
             setParticipants(data);

@@ -10,7 +10,7 @@ import {
   SpeakerLayout,
   useCallStateHooks,
 } from '@stream-io/video-react-sdk';
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,111 +25,134 @@ import Loader from './Loader';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
 import PendingRequestsPanel from './PendingRequestsPanel';
 import ParticipantsList from '@/components/ParticipantsList';
+import { useCall } from '@stream-io/video-react-sdk';
+
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
+interface UserPermissions {
+  canManageParticipants: boolean;
+  canEndCall: boolean;
+  canViewStats: boolean;
+  canModifyHosts: boolean;
+}
+
 const MeetingRoom = () => {
-  const [layout, setLayout] = React.useState<CallLayoutType>('speaker-left');
-  const [showParticipants, setShowParticipants] = React.useState(false);
+  const [layout, setLayout] = useState<CallLayoutType>('speaker-left');
+  const [showParticipants, setShowParticipants] = useState(false);
   const searchParams = useSearchParams();
   const { useCallCallingState, useCallCustomData } = useCallStateHooks();
+  const call = useCall();
   const callingState = useCallCallingState();
   const customData = useCallCustomData();
   const isPersonalRoom = !!searchParams.get('personal');
 
-  // Synchronously fetch userId and email from localStorage
+
+  const [userRole, setUserRole] = useState<'host' | 'cohost' | 'participant'>('participant');
+  const [userPermissions, setUserPermissions] = useState<UserPermissions>({
+    canManageParticipants: false,
+    canEndCall: false,
+    canViewStats: false,
+    canModifyHosts: false
+  });
+
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
   const userEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null;
 
-  // Memoize isHost to avoid recomputation unless dependencies change
-  const isHost = useMemo(() => {
-    if (!userId || !customData?.creatorId) return false;
-    return customData.creatorId === userId;
-  }, [customData, userId]);
+  useEffect(() => {
+    const syncUserRole = async () => {
+      if (!userId || !call?.id) return;
 
-  // Debug logs
-  React.useEffect(() => {
-    console.log('Calling State:', callingState);
-    console.log('Custom Data:', customData);
-    console.log('User ID:', userId);
-    console.log('Is Host meeting room:', isHost);
-  }, [callingState, customData, userId]);
+      try {
+        const response = await fetch(`/api/get-user-role?callId=${call.id}&userId=${userId}&t=${Date.now()}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+          setUserRole(data.role);
+          setUserPermissions(data.permissions);
+          console.log('User role and permissions updated:', {
+            role: data.role,
+            permissions: data.permissions
+          });
+        }
+      } catch (error) {
+        console.error('Error syncing user role:', error);
+      }
+    };
 
-  // Handle loading and error states
+    syncUserRole();
+    const interval = setInterval(syncUserRole, 3000);
+    return () => clearInterval(interval);
+  }, [userId, call?.id]);
+
   if (callingState !== CallingState.JOINED) {
     if (callingState === CallingState.RECONNECTING) {
-      return (
-        <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
-          Reconnecting to the meeting...
-        </div>
-      );
-    } else if (callingState === CallingState.OFFLINE) {
-      return (
-        <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
-          Offline. Please check your network and try again.
-        </div>
-      );
+      return <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
+        Reconnecting to the meeting...
+      </div>;
     }
     return <Loader />;
   }
 
   const CallLayout = () => {
     switch (layout) {
-      case 'grid':
-        return <PaginatedGridLayout />;
-      case 'speaker-right':
-        return <SpeakerLayout participantsBarPosition="left" />;
-      case 'speaker-left':
-        return <SpeakerLayout participantsBarPosition="right" />;
-      default:
-        return <SpeakerLayout participantsBarPosition="right" />;
+      case 'grid': return <PaginatedGridLayout />;
+      case 'speaker-right': return <SpeakerLayout participantsBarPosition="left" />;
+      default: return <SpeakerLayout participantsBarPosition="right" />;
     }
   };
 
   return (
     <section className="relative h-screen w-full overflow-hidden bg-gray-900 text-white">
-      {/* Display email with (host) if user is host */}
+      {/* Debug overlay */}
+      <div className="fixed top-0 left-0 z-50 p-2 bg-blue-900 text-white text-xs">
+        Role: {userRole} | 
+        Permissions: {Object.entries(userPermissions)
+          .filter(([_, value]) => value)
+          .map(([key]) => key)
+          .join(', ')}
+      </div>
+
+      {/* User info */}
       {userEmail && (
         <div className="absolute top-4 right-4 z-50 rounded-md bg-gray-800 px-4 py-2 text-sm text-white shadow-md">
-          {userEmail} {isHost && <span className="text-blue-400">(host)</span>}
+          {userEmail} 
+          {userRole === 'host' && <span className="text-blue-400"> (host)</span>}
+          {userRole === 'cohost' && <span className="text-green-400"> (co-host)</span>}
         </div>
       )}
 
-      {/* Main Video Layout */}
+      {/* Main video layout */}
       <div className="relative flex h-full w-full items-center justify-center">
         <div className="flex w-full max-w-[1200px] items-center justify-center">
           <CallLayout />
         </div>
 
-        {/* Participants List (Slide-in Panel) */}
-        <div
-          className={cn(
-            'absolute right-0 top-4 h-[calc(100vh-96px)] w-72 bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out',
-            showParticipants ? 'translate-x-0' : 'translate-x-full'
-          )}
-        >
+        {/* Participants panel */}
+        <div className={cn(
+          'absolute right-0 top-4 h-[calc(100vh-96px)] w-72 bg-gray-800 shadow-lg transition-transform duration-300 ease-in-out',
+          showParticipants ? 'translate-x-0' : 'translate-x-full'
+        )}>
           <CallParticipantsList onClose={() => setShowParticipants(false)} />
         </div>
       </div>
 
-      {/* Bottom Controls Bar */}
+      {/* Bottom controls bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-4 bg-gray-800 p-4 shadow-lg">
-        {/* Stream.io Call Controls */}
+        {/* Basic controls for everyone */}
         <div className="flex items-center gap-2">
-          <CallControls
-            onLeave={() => {
-              window.location.href = '/'; // Redirect to homepage
-            }}
-          />
+          <CallControls onLeave={() => window.location.href = '/'} />
         </div>
-        <PendingRequestsPanel />
-        <CallStatsButton />
-        {isHost && !isPersonalRoom &&  <ParticipantsList />}
-       
 
-        {/* Toggle Participants List */}
+        {/* Host and co-host controls */}
+        {userPermissions.canManageParticipants && <PendingRequestsPanel />}
+        {userPermissions.canViewStats && <CallStatsButton />}
+        {userPermissions.canManageParticipants && !isPersonalRoom && <ParticipantsList />}
+        {userPermissions.canEndCall && !isPersonalRoom && <EndCallButton />}
+
+        {/* Participants toggle */}
         <button
-          onClick={() => setShowParticipants((prev) => !prev)}
+          onClick={() => setShowParticipants(!showParticipants)}
           className={cn(
             'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium',
             showParticipants ? 'bg-blue-600' : 'bg-gray-700',
@@ -140,7 +163,7 @@ const MeetingRoom = () => {
           <span>Participants</span>
         </button>
 
-        {/* Layout Selection */}
+        {/* Layout selection */}
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium hover:bg-blue-500 transition-colors">
             <LayoutList size={20} />
@@ -160,9 +183,6 @@ const MeetingRoom = () => {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {/* End Call Button - Host Only */}
-        {isHost && !isPersonalRoom && <EndCallButton />}
       </div>
     </section>
   );

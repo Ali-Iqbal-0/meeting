@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useCall, useCallStateHooks } from '@stream-io/video-react-sdk';
+import { useState, useEffect } from 'react';
+import { useCall } from '@stream-io/video-react-sdk';
 import { Users } from 'lucide-react';
 import {
   AlertDialog,
@@ -14,39 +14,63 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 
-const ParticipantsList = () => {
-  const call = useCall();
-  const { useCallCustomData } = useCallStateHooks();
-  const customData = useCallCustomData();
 
-  const [participants, setParticipants] = useState<any[]>([]);
+interface Participant {
+  userId: string;
+  name: string;
+  email: string;
+  isHost: boolean;
+  status: string;
+}
+
+export default function ParticipantsList() {
+  const call = useCall();
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showParticipants, setShowParticipants] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
+  const [showPanel, setShowPanel] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [canModifyHosts, setCanModifyHosts] = useState(false);
 
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-  const isMainHost = customData?.creatorId === userId; // Only creator can assign co-hosts
+
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      if (!userId || !call?.id) return;
+      const response = await fetch(`/api/get-user-role?callId=${call.id}&userId=${userId}`);
+      const data = await response.json();
+      if (response.ok) {
+        setCanModifyHosts(data.permissions?.canModifyHosts || false);
+      }
+    };
+    fetchPermissions();
+  }, [userId, call?.id]);
 
   const fetchParticipants = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/participants-host?callId=${call?.id}`);
+      const response = await fetch(`/api/participants?callId=${call?.id}&t=${Date.now()}`);
       const data = await response.json();
-      setParticipants(data.participants || []);
-    } catch (error) {
-      alert('Failed to load participants');
+      
+      if (response.ok) {
+        setParticipants(data.participants || []);
+      } else {
+        throw new Error(data.error || 'Failed to fetch participants');
+      }
+    } catch (error: any) {
+      alert({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const initiateCoHostRequest = (participant: any) => {
-    setSelectedParticipant(participant);
-    setShowConfirmation(true);
-  };
+  const handleMakeCoHost = async (accepted: boolean) => {
+    if (!selectedParticipant || !userId) return;
 
-  const makeCoHost = async (accepted: boolean) => {
     try {
       const response = await fetch('/api/make-cohost', {
         method: 'POST',
@@ -60,108 +84,122 @@ const ParticipantsList = () => {
       });
 
       const result = await response.json();
-
       if (response.ok) {
-        if (accepted) {
-          await fetchParticipants(); // Refresh participant list
-          sendCoHostNotification(selectedParticipant.userId, true);
-        }
-        alert(result.message);
+        alert({
+          title: accepted ? 'Co-Host Added' : 'Co-Host Removed',
+          description: result.message,
+        });
+        fetchParticipants();
       } else {
         throw new Error(result.error);
       }
-    } catch (error) {
-      alert('Request failed');
+    } catch (error: any) {
+      alert({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
     } finally {
-      setShowConfirmation(false);
-      setSelectedParticipant(null);
+      setShowDialog(false);
     }
   };
 
-  const sendCoHostNotification = (userId: string, accepted: boolean) => {
-    // Implement your notification system here
-    console.log(`User ${userId} ${accepted ? 'accepted' : 'declined'} co-host request`);
-  };
+  useEffect(() => {
+    if (showPanel) {
+      fetchParticipants();
+      const interval = setInterval(fetchParticipants, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [showPanel]);
 
   return (
-    <div className="relative inline-block text-left">
+    <div className="relative">
       <button
         onClick={() => {
-          if (!showParticipants) fetchParticipants();
-          setShowParticipants(!showParticipants);
+          setShowPanel(!showPanel);
+          if (!showPanel) fetchParticipants();
         }}
         className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-md shadow-sm transition"
       >
         <Users className="h-4 w-4" />
-        <span>Make Co-Host ({participants.length})</span>
+        <span>Manage Participants ({participants.length})</span>
       </button>
 
-      {showParticipants && (
-        <div className="fixed top-0 right-0 z-50 h-full w-80 bg-gray-800 border-l shadow-xl animate-slide-in p-4 overflow-y-auto">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Make Co-Host</h3>
-            <button
-              onClick={() => setShowParticipants(false)}
-              className="text-white hover:text-red-500 text-sm"
-            >
-              X
+      {showPanel && (
+        <div className="fixed top-16 right-4 z-50 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Participants</h3>
+            <button onClick={() => setShowPanel(false)} className="text-gray-400 hover:text-white">
+              ✕
             </button>
           </div>
-          <div className="space-y-2">
-            {isLoading ? (
-              <p>Loading participants...</p>
-            ) : (
-              participants.map((p) => (
-                <div
-                  key={p.userId}
-                  className="flex items-start justify-between p-2 bg-gray-800 hover:bg-gray-700 rounded-md transition"
-                >
-                  <div className="text-sm">
-                    <p className="font-medium text-white">{p.name}</p>
-                    <p className="text-xs text-white">{p.email}</p>
+
+          {isLoading ? (
+            <div className="text-center py-4">Loading...</div>
+          ) : (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {participants.map((p) => (
+                <div key={p.userId} className="flex justify-between items-center p-2 bg-gray-700 rounded">
+                  <div>
+                    <p className="font-medium">{p.name}</p>
+                    <p className="text-xs text-gray-400">{p.email}</p>
                     {p.isHost && (
-                      <span className="text-xs text-blue-600 font-semibold">
-                        {p.userId === customData?.creatorId ? 'Main Host' : 'Co-Host'}
+                      <span className={`text-xs ${
+                        p.userId === userId ? 'text-blue-400' : 'text-green-400'
+                      }`}>
+                        {p.userId === userId ? 'You' : p.userId === call?.state.createdBy?.id ? 'Main Host' : 'Co-Host'}
                       </span>
                     )}
                   </div>
-                  {isMainHost && p.userId !== userId && (
+                  {canModifyHosts && userId !== p.userId && (
                     <button
-                      onClick={() => initiateCoHostRequest(p)}
-                      className="text-white hover:text-gray-100 text-sm underline"
+                      onClick={() => {
+                        setSelectedParticipant(p);
+                        setShowDialog(true);
+                      }}
+                      className={`text-sm px-3 py-1 rounded ${
+                        p.isHost ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'
+                      }`}
                     >
-                      {p.isHost ? 'Remove Host' : 'Make Co-Host'}
+                      {p.isHost ? 'Remove Host' : 'Make Host'}
                     </button>
                   )}
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
-        <AlertDialogContent>
+      <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
+        <AlertDialogContent className="bg-gray-800 text-white border-gray-700">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {selectedParticipant?.isHost ? 'Remove Host' : 'Add Co-Host'}
+              {selectedParticipant?.isHost ? 'Remove Host Privileges?' : 'Make Co-Host?'}
             </AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-gray-300">
               {selectedParticipant?.isHost
-                ? `Are you sure you want to remove ${selectedParticipant?.name} as a co-host?`
-                : `${selectedParticipant?.name} will be notified to accept co-host rights. They will gain full host controls.`}
+                ? `Remove ${selectedParticipant.name}'s host privileges?`
+                : `Make ${selectedParticipant?.name} a co-host with full meeting controls?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => makeCoHost(!selectedParticipant?.isHost)}>
-              {selectedParticipant?.isHost ? 'Remove' : 'Send Request'}
+            <AlertDialogCancel className="bg-gray-700 border-none hover:bg-gray-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleMakeCoHost(!selectedParticipant?.isHost)}
+              className={
+                selectedParticipant?.isHost 
+                  ? 'bg-red-600 hover:bg-red-500' 
+                  : 'bg-blue-600 hover:bg-blue-500'
+              }
+            >
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
   );
-};
-
-export default ParticipantsList;
+}

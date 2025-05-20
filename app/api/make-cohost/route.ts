@@ -1,12 +1,15 @@
-// app/api/make-cohost/route.ts
 import { NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/mongoose';
 import Meeting from '@/lib/models/meeting.model';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    await connectToDatabase();
+    
     const { callId, userId, currentHostId, accepted } = await request.json();
 
-    // Validate request
     if (!callId || !userId || !currentHostId || typeof accepted !== 'boolean') {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -22,42 +25,40 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify current user is main host
-    const currentHost = meeting.participants.find((p: { userId: string; isHost: boolean }) =>
-        p.userId === currentHostId && p.isHost
-      );
-      
-    if (!currentHost) {
+    // Verify current user is the main host
+    const currentUser = meeting.participants.find((p: any) => p.userId === currentHostId);
+    if (!currentUser || currentUser.userId !== meeting.creatorId) {
       return NextResponse.json(
-        { error: 'Only main host can assign co-hosts' },
+        { error: 'Only the main host can assign co-hosts' },
         { status: 403 }
       );
     }
 
-    if (accepted) {
-      // Update co-host status
-      await Meeting.updateOne(
-        { callId, "participants.userId": userId },
-        { $set: { "participants.$.isCoHost": true } }
-      );
+    const participantIndex = meeting.participants.findIndex(
+      (p: any) => p.userId === userId
+    );
 
-      return NextResponse.json({
-        success: true,
-        message: `${userId} is now a co-host`
-      });
-    } else {
-      // Remove co-host status if request was declined
-      await Meeting.updateOne(
-        { callId, "participants.userId": userId },
-        { $set: { "participants.$.isCoHost": false } }
+    if (participantIndex === -1) {
+      return NextResponse.json(
+        { error: 'Participant not found' },
+        { status: 404 }
       );
-
-      return NextResponse.json({
-        success: true,
-        message: 'Co-host request was declined'
-      });
     }
+
+    meeting.participants[participantIndex].isHost = accepted;
+    meeting.markModified('participants');
+    await meeting.save();
+
+    return NextResponse.json({
+      success: true,
+      message: accepted 
+        ? `Successfully made ${meeting.participants[participantIndex].name} a co-host`
+        : `Removed co-host privileges from ${meeting.participants[participantIndex].name}`,
+      participant: meeting.participants[participantIndex],
+      updatedAt: meeting.updatedAt
+    });
   } catch (error) {
+    console.error('Error updating co-host status:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

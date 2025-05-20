@@ -1,24 +1,27 @@
-"use client"
-import { useCall, useCallStateHooks } from '@stream-io/video-react-sdk'
+'use client';
+import { useCall } from '@stream-io/video-react-sdk';
 import { useRouter } from 'next/navigation';
-import React from 'react'
+import React from 'react';
 
 const EndCallButton = () => {
-    const call=useCall();
-    const router= useRouter();
-    const {useLocalParticipant}=useCallStateHooks();
-    const LocalParticipant=useLocalParticipant();
+  const call = useCall();
+  const router = useRouter();
 
-    const isMeetingOwner= LocalParticipant && call?.state.createdBy && LocalParticipant.userId === call.state.createdBy.id;
- if(!isMeetingOwner) return null;
-    return (
-    <button onClick={async()=>{
-        await call.endCall();
+  return (
+    <button
+      onClick={async () => {
+        if (call) {
+          await call.endCall();
+        } else {
+          console.error('Call object is undefined');
+        }
         router.push('/');
-    }} className='bg-red-500 rounded-3xl cursor-pointer '>
-End Call for Everyone
+      }}
+      className='bg-red-500 rounded-3xl cursor-pointer'
+    >
+      End Call for Everyone
     </button>
-  )
-}
+  );
+};
 
-export default EndCallButton
+export default EndCallButton;

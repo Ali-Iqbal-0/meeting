@@ -1,8 +1,6 @@
 'use client';
-
 import { useCall, useCallStateHooks } from '@stream-io/video-react-sdk';
 import React, { useState, useEffect } from 'react';
-
 
 interface PendingParticipant {
   userId: string;
@@ -16,20 +14,14 @@ const PendingRequestsPanel = () => {
   const [pendingParticipants, setPendingParticipants] = useState<PendingParticipant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
-  const { useCallCustomData } = useCallStateHooks();
-  const customData = useCallCustomData();
-
-  const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-  const isHost = customData?.creatorId === userId;
 
   useEffect(() => {
-    if (!call || !isHost) return;
+    if (!call) return;
 
     const fetchPendingRequests = async () => {
       try {
         const response = await fetch(`/api/pending-requests?callId=${call.id}`);
         if (!response.ok) throw new Error('Failed to fetch pending requests');
-        
         const data = await response.json();
         setPendingParticipants(data.participants);
       } catch (error) {
@@ -37,41 +29,26 @@ const PendingRequestsPanel = () => {
       }
     };
 
-    // Fetch initially and then every 10 seconds
     fetchPendingRequests();
     const interval = setInterval(fetchPendingRequests, 10000);
-
     return () => clearInterval(interval);
-  }, [call, isHost]);
+  }, [call]);
 
   const handleRequestAction = async (participantId: string, action: 'accept' | 'reject') => {
     if (!call || isLoading) return;
-    
+
     setIsLoading(true);
     try {
       const response = await fetch('/api/handle-request', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          callId: call.id,
-          participantId,
-          action
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callId: call.id, participantId, action }),
       });
 
       if (!response.ok) throw new Error(`Failed to ${action} request`);
-
-      // Update local state
-      setPendingParticipants(prev => 
-        prev.filter(p => p._id !== participantId)
-      );
-
-      // If accepted, you can log or handle the acceptance logic here
+      setPendingParticipants((prev) => prev.filter((p) => p._id !== participantId));
       if (action === 'accept') {
         console.log(`Participant ${participantId} has been accepted.`);
-        // Add any additional logic if needed
       }
     } catch (error) {
       console.error(`Error ${action}ing request:`, error);
@@ -80,7 +57,7 @@ const PendingRequestsPanel = () => {
     }
   };
 
-  if (!isHost || pendingParticipants.length === 0) return null;
+  if (pendingParticipants.length === 0) return null;
 
   return (
     <div className="relative">
@@ -90,7 +67,6 @@ const PendingRequestsPanel = () => {
       >
         <span>Pending Requests ({pendingParticipants.length})</span>
       </button>
-
       {showPanel && (
         <div className="absolute bottom-full right-0 mb-2 w-72 bg-gray-800 rounded-lg shadow-lg z-50 p-4">
           <h3 className="text-lg font-semibold mb-3">Pending Join Requests</h3>

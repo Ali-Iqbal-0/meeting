@@ -8,10 +8,11 @@ export async function GET(request: Request) {
     
     const { searchParams } = new URL(request.url);
     const callId = searchParams.get('callId');
+    const userId = searchParams.get('userId');
     
-    if (!callId) {
+    if (!callId || !userId) {
       return NextResponse.json(
-        { error: 'Call ID is required' },
+        { error: 'Call ID and User ID are required' },
         { status: 400 }
       );
     }
@@ -24,21 +25,17 @@ export async function GET(request: Request) {
         { status: 404 }
       );
     }
-    const participants = meeting.participants.map((p: any) => ({
-      userId: p.userId,
-      name: p.name,
-      email: p.email,
-      isHost: p.isHost,
-      status: p.status,
-      isCreator: p.userId === meeting.creatorId
-    }));
 
-    return NextResponse.json({
-      participants,
-      updatedAt: meeting.updatedAt
+    const participant = meeting.participants.find(
+      (p: any) => p.userId === userId
+    );
+
+    return NextResponse.json({ 
+      isCoHost: participant?.isHost && participant.userId !== meeting.creatorId,
+      isMainHost: participant?.userId === meeting.creatorId
     });
   } catch (error) {
-    console.error('Error fetching participants:', error);
+    console.error('Error checking co-host status:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
