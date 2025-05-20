@@ -12,27 +12,25 @@ export default function SignIn() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const payload = { email, password };
-    console.log('Sending payload:', payload);
+
     try {
       const res = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
-      console.log('Signin response:', data);
 
       if (res.ok) {
-        if (data.userId && data.token) {
-          localStorage.setItem('userId', data.userId);
-          localStorage.setItem('token', data.token);
+        const { userId, token } = data;
+        if (userId && token) {
+          localStorage.setItem('userId', userId);
+          localStorage.setItem('token', token);
           localStorage.setItem('email', email);
-          console.log('Saved to localStorage:', { userId: data.userId, token: data.token });
         } else {
-          console.error('Missing userId or token in response');
-          setError('Sign-in successful, but userId or token not received');
+          setError('Sign-in succeeded but no token received.');
+          return;
         }
         router.push('/');
         router.refresh();

@@ -53,7 +53,7 @@ const MeetingTypeList = () => {
     try {
       // Send invites to selected participants
       if (participantIds.length > 0) {
-        const res = await fetch('/api/participants');
+        const res = await fetch('/api/participants-model');
         const participants = await res.json();
         if (!res.ok) throw new Error('Failed to fetch participants');
 

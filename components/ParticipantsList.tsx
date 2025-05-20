@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useCall } from '@stream-io/video-react-sdk';
 import { Users } from 'lucide-react';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,13 +15,13 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 
-
 interface Participant {
   userId: string;
   name: string;
   email: string;
   isHost: boolean;
   status: string;
+  pendingHostRequest?: boolean;
 }
 
 export default function ParticipantsList() {
@@ -31,16 +32,22 @@ export default function ParticipantsList() {
   const [showDialog, setShowDialog] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [canModifyHosts, setCanModifyHosts] = useState(false);
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
+ 
 
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
 
   useEffect(() => {
     const fetchPermissions = async () => {
       if (!userId || !call?.id) return;
-      const response = await fetch(`/api/get-user-role?callId=${call.id}&userId=${userId}`);
-      const data = await response.json();
-      if (response.ok) {
-        setCanModifyHosts(data.permissions?.canModifyHosts || false);
+      try {
+        const response = await fetch(`/api/get-user-role?callId=${call.id}&userId=${userId}&t=${Date.now()}`);
+        const data = await response.json();
+        if (response.ok) {
+          setCanModifyHosts(data.permissions?.canModifyHosts || false);
+        }
+      } catch (error) {
+        console.error('Error fetching permissions:', error);
       }
     };
     fetchPermissions();
@@ -68,28 +75,32 @@ export default function ParticipantsList() {
     }
   };
 
-  const handleMakeCoHost = async (accepted: boolean) => {
-    if (!selectedParticipant || !userId) return;
+  const sendHostRequest = async () => {
+    if (!selectedParticipant || !userId || !call?.id) return;
+    setIsSendingRequest(true);
 
     try {
-      const response = await fetch('/api/make-cohost', {
+      const response = await fetch('/api/send-host-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          callId: call?.id,
-          userId: selectedParticipant.userId,
-          currentHostId: userId,
-          accepted,
+          callId: call.id,
+          targetUserId: selectedParticipant.userId,
+          requesterId: userId,
         }),
       });
 
       const result = await response.json();
       if (response.ok) {
         alert({
-          title: accepted ? 'Co-Host Added' : 'Co-Host Removed',
-          description: result.message,
+          title: 'Request Sent',
+          description: `Host request sent to ${selectedParticipant.name}`,
         });
-        fetchParticipants();
+        setParticipants(prev => prev.map(p => 
+          p.userId === selectedParticipant.userId 
+            ? { ...p, pendingHostRequest: true } 
+            : p
+        ));
       } else {
         throw new Error(result.error);
       }
@@ -100,6 +111,7 @@ export default function ParticipantsList() {
         variant: 'destructive',
       });
     } finally {
+      setIsSendingRequest(false);
       setShowDialog(false);
     }
   };
@@ -129,7 +141,11 @@ export default function ParticipantsList() {
         <div className="fixed top-16 right-4 z-50 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold">Participants</h3>
-            <button onClick={() => setShowPanel(false)} className="text-gray-400 hover:text-white">
+            <button 
+              onClick={() => setShowPanel(false)} 
+              className="text-gray-400 hover:text-white"
+              disabled={isLoading}
+            >
               ✕
             </button>
           </div>
@@ -139,29 +155,33 @@ export default function ParticipantsList() {
           ) : (
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               {participants.map((p) => (
-                <div key={p.userId} className="flex justify-between items-center p-2 bg-gray-700 rounded">
-                  <div>
-                    <p className="font-medium">{p.name}</p>
-                    <p className="text-xs text-gray-400">{p.email}</p>
-                    {p.isHost && (
-                      <span className={`text-xs ${
-                        p.userId === userId ? 'text-blue-400' : 'text-green-400'
-                      }`}>
-                        {p.userId === userId ? 'You' : p.userId === call?.state.createdBy?.id ? 'Main Host' : 'Co-Host'}
-                      </span>
-                    )}
+                <div key={p.userId} className="flex justify-between items-center p-2 bg-gray-700 rounded hover:bg-gray-600 transition-colors">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{p.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{p.email}</p>
+                    <div className="flex gap-2 mt-1">
+                      {p.isHost && (
+                        <span className={`text-xs ${
+                          p.userId === userId ? 'text-blue-400' : 'text-green-400'
+                        }`}>
+                          {p.userId === userId ? 'You' : p.userId === call?.state.createdBy?.id ? 'Main Host' : 'Co-Host'}
+                        </span>
+                      )}
+                      {p.pendingHostRequest && (
+                        <span className="text-xs text-yellow-400">Pending Request</span>
+                      )}
+                    </div>
                   </div>
-                  {canModifyHosts && userId !== p.userId && (
+                  {canModifyHosts && userId !== p.userId && !p.isHost && !p.pendingHostRequest && (
                     <button
                       onClick={() => {
                         setSelectedParticipant(p);
                         setShowDialog(true);
                       }}
-                      className={`text-sm px-3 py-1 rounded ${
-                        p.isHost ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'
-                      }`}
+                      className="text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 transition-colors whitespace-nowrap"
+                      disabled={isLoading}
                     >
-                      {p.isHost ? 'Remove Host' : 'Make Host'}
+                      Make Host
                     </button>
                   )}
                 </div>
@@ -174,28 +194,24 @@ export default function ParticipantsList() {
       <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
         <AlertDialogContent className="bg-gray-800 text-white border-gray-700">
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {selectedParticipant?.isHost ? 'Remove Host Privileges?' : 'Make Co-Host?'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Send Host Request?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-300">
-              {selectedParticipant?.isHost
-                ? `Remove ${selectedParticipant.name}'s host privileges?`
-                : `Make ${selectedParticipant?.name} a co-host with full meeting controls?`}
+              {`Send a host request to ${selectedParticipant?.name}? They will need to accept before becoming a co-host.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-gray-700 border-none hover:bg-gray-600">
+            <AlertDialogCancel 
+              className="bg-gray-700 border-none hover:bg-gray-600"
+              disabled={isSendingRequest}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => handleMakeCoHost(!selectedParticipant?.isHost)}
-              className={
-                selectedParticipant?.isHost 
-                  ? 'bg-red-600 hover:bg-red-500' 
-                  : 'bg-blue-600 hover:bg-blue-500'
-              }
+              onClick={sendHostRequest}
+              className="bg-blue-600 hover:bg-blue-500"
+              disabled={isSendingRequest}
             >
-              Confirm
+              {isSendingRequest ? 'Sending...' : 'Send Request'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

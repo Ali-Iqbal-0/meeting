@@ -26,6 +26,7 @@ import '@stream-io/video-react-sdk/dist/css/styles.css';
 import PendingRequestsPanel from './PendingRequestsPanel';
 import ParticipantsList from '@/components/ParticipantsList';
 import { useCall } from '@stream-io/video-react-sdk';
+import HostRequestNotification from './Notification';
 
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
@@ -58,32 +59,45 @@ const MeetingRoom = () => {
 
   const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
   const userEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null;
+// Add this useEffect to your MeetingRoom component
+useEffect(() => {
+  const handleRoleChange = (event: StorageEvent) => {
+    if (event.key === 'userRole' && event.newValue) {
+      setUserRole(event.newValue as 'host' | 'cohost' | 'participant');
+      // You might want to refetch permissions here
+    }
+  };
+
+  window.addEventListener('storage', handleRoleChange);
+  return () => window.removeEventListener('storage', handleRoleChange);
+}, []);
+
+// Update the syncUserRole function to store role in localStorage
 
   useEffect(() => {
     const syncUserRole = async () => {
       if (!userId || !call?.id) return;
-
+  
       try {
         const response = await fetch(`/api/get-user-role?callId=${call.id}&userId=${userId}&t=${Date.now()}`);
         const data = await response.json();
-        
+  
         if (response.ok) {
-          setUserRole(data.role);
-          setUserPermissions(data.permissions);
-          console.log('User role and permissions updated:', {
-            role: data.role,
-            permissions: data.permissions
-          });
+          if (data.role !== userRole) setUserRole(data.role);
+          if (JSON.stringify(data.permissions) !== JSON.stringify(userPermissions)) {
+            setUserPermissions(data.permissions);
+          }
         }
       } catch (error) {
         console.error('Error syncing user role:', error);
       }
     };
-
+  
     syncUserRole();
-    const interval = setInterval(syncUserRole, 3000);
+    const interval = setInterval(syncUserRole, 10000);
     return () => clearInterval(interval);
-  }, [userId, call?.id]);
+  }, [userId, call?.id, userRole, userPermissions]);
+  
 
   if (callingState !== CallingState.JOINED) {
     if (callingState === CallingState.RECONNECTING) {
@@ -104,14 +118,6 @@ const MeetingRoom = () => {
 
   return (
     <section className="relative h-screen w-full overflow-hidden bg-gray-900 text-white">
-      {/* Debug overlay */}
-      <div className="fixed top-0 left-0 z-50 p-2 bg-blue-900 text-white text-xs">
-        Role: {userRole} | 
-        Permissions: {Object.entries(userPermissions)
-          .filter(([_, value]) => value)
-          .map(([key]) => key)
-          .join(', ')}
-      </div>
 
       {/* User info */}
       {userEmail && (
@@ -136,6 +142,7 @@ const MeetingRoom = () => {
           <CallParticipantsList onClose={() => setShowParticipants(false)} />
         </div>
       </div>
+      <HostRequestNotification />
 
       {/* Bottom controls bar */}
       <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-4 bg-gray-800 p-4 shadow-lg">

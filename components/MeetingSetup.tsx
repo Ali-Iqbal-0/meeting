@@ -128,7 +128,7 @@ useEffect(() => {
   };
 
   // Check every 5 seconds if the user has been approved
-  const interval = setInterval(checkApprovalStatus, 5000);
+  const interval = setInterval(checkApprovalStatus, 10000);
   return () => clearInterval(interval);
 }, [call, userId, setIsSetupComplete]);
   if (!call) {
